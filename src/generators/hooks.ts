@@ -1,9 +1,13 @@
+import { ProjectInfo } from '../utils/scanner.js';
+import { Preset } from './claudeignore.js';
+
 export interface HookScripts {
   'session-start.sh': string;
   'post-tool.sh': string;
+  'pre-compact.sh': string;
 }
 
-export function generateHooks(): HookScripts {
+export function generateHooks(_preset: Preset, _project: ProjectInfo): HookScripts {
   const sessionStart = `#!/bin/sh
 # session-start.sh — record session start for token tracking
 
@@ -74,8 +78,25 @@ process.stdin.on('end', () => {
 EOF
 `;
 
+  const preCompact = `#!/bin/sh
+# pre-compact.sh — save context summary before compaction
+
+DATA_DIR=\${CTS_DATA_DIR:-"\$HOME/.claude-token-saver"}
+SUMMARY_DIR="\$DATA_DIR/compaction-summaries"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+mkdir -p "\$SUMMARY_DIR"
+
+# Claude Code passes the summary on stdin during pre-compact
+SUMMARY_FILE="\$SUMMARY_DIR/\$TIMESTAMP.txt"
+cat > "\$SUMMARY_FILE"
+
+echo "cts pre-compact: saved summary to \$SUMMARY_FILE" >&2
+`;
+
   return {
     'session-start.sh': sessionStart,
     'post-tool.sh': postTool,
+    'pre-compact.sh': preCompact,
   };
 }
