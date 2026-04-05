@@ -1,6 +1,7 @@
 export interface HookScripts {
   'session-start.sh': string;
   'post-tool.sh': string;
+  'pre-compact.sh': string;
 }
 
 export function generateHooks(): HookScripts {
@@ -74,8 +75,37 @@ process.stdin.on('end', () => {
 EOF
 `;
 
+  const preCompact = `#!/bin/sh
+# pre-compact.sh — log compaction events for token tracking
+
+# Check node is available
+if ! command -v node >/dev/null 2>&1; then
+  echo "cts pre-compact: node not available, skipping" >&2
+  exit 0
+fi
+
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+DATA_DIR=\${CTS_DATA_DIR:-"\$HOME/.claude-token-saver"}
+TRACKING_FILE="\$DATA_DIR/tracking.json"
+
+if [ ! -f "\$TRACKING_FILE" ]; then
+  exit 0
+fi
+
+node - "\$TRACKING_FILE" "\$TIMESTAMP" <<'EOF'
+const fs = require('fs');
+const [,, file, timestamp] = process.argv;
+let data;
+try { data = JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { data = { sessions: [] }; }
+if (!data.compactions) data.compactions = [];
+data.compactions.push({ timestamp });
+fs.writeFileSync(file, JSON.stringify(data, null, 2));
+EOF
+`;
+
   return {
     'session-start.sh': sessionStart,
     'post-tool.sh': postTool,
+    'pre-compact.sh': preCompact,
   };
 }
